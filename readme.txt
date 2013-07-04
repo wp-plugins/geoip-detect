@@ -1,5 +1,5 @@
 === GeoIP Detection ===
-Contributors: yellowtree
+Contributors: benjaminpick
 Tags: geoip, ip, locator, latitude, longitude
 Requires at least: 3.5
 Tested up to: 3.5.2
