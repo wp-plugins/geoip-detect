@@ -16,7 +16,7 @@ $date_format = get_option('date_format') . ' ' . get_option('time_format')
 
 	<?php if (!defined('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED')) : ?>
 	<p>
-		<em><?php _e('(The file is updated automatically once a week.)'); ?></em>
+		<em><?php _e('(The file is updated automatically once a week.)', 'geoip-detect'); ?></em>
 	</p>
 	<?php endif; ?>
 	
@@ -34,6 +34,9 @@ $date_format = get_option('date_format') . ' ' . get_option('time_format')
 	</form>
 	<?php if ($ip_lookup_result !== false) :
 			if (is_object($ip_lookup_result)) : ?>
+	<p>
+		<?php printf(__('The function %s returns an object:', 'geoip-detect'), "<code>geoip_detect_get_info_from_ip('" . esc_html($_POST['ip']) . "')</code>"); ?>
+	</p>
 	<table>
 		<thead>
 			<th><?php _e('Key', 'geoip-detect'); ?></th>

@@ -2,12 +2,14 @@
 
 /**
  * Get Geo-Information for a specific IP
- * @param string $ip IP-Adress (currently only IPv4)
+ * @param string 		$ip IP-Adress (currently only IPv4)
  * @return geoiprecord	GeoInformation. (0 / NULL: no infos found.)
  */
 function geoip_detect_get_info_from_ip($ip)
 {
 	$data_file = geoip_detect_get_abs_db_filename();
+	if (!$data_file)
+		return 0;
 
 	$gi = geoip_open($data_file, GEOIP_STANDARD);
 	$record = geoip_record_by_addr($gi, $ip);
@@ -20,7 +22,7 @@ function geoip_detect_get_info_from_ip($ip)
 
 /**
  * Get Geo-Information for the current IP
- * @param string $ip (IPv4)
+ * @param string 		$ip (IPv4)
  * @return geoiprecord	GeoInformation. (0 / NULL: no infos found.)
  */
 function geoip_detect_get_info_from_current_ip()

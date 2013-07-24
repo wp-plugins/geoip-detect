@@ -5,70 +5,57 @@ Plugin URI: http://www.yellowtree.de
 Description: Retrieving Geo-Information using the Maxmind GeoIP (Lite) Database.
 Author: YellowTree (Benjamin Pick)
 Author URI: http://www.yellowtree.de
-Version: 1.1
+Version: 1.2
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: geoip-detect
 Domain Path: /languages
 */
+/*
+Copyright 2013 YellowTree, Siegen, Germany
+Author: Benjamin Pick (b.pick@yellowtree.de)
 
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
 require_once(dirname(__FILE__) . '/vendor/geoip/geoip/geoipcity.inc');
 
 require_once(dirname(__FILE__) . '/api.php');
 require_once(dirname(__FILE__) . '/filter.php');
 
-define('GEOIP_DETECT_DATA_FOLDER', ABSPATH . '/wp-content/uploads/');
+require_once(dirname(__FILE__) . '/updater.php');
+
 define('GEOIP_DETECT_DATA_FILENAME', 'GeoLiteCity.dat');
 
-//define('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED', true);
 
 function geoip_detect_get_abs_db_filename()
 {
-	$data_file = GEOIP_DETECT_DATA_FOLDER . '/' . GEOIP_DETECT_DATA_FILENAME;
-	if (!file_exists($data_file))
-		$data_file = __DIR__. '/' . GEOIP_DETECT_DATA_FILENAME;
+	$data_filename = dirname(__FILE__) . '/' . GEOIP_DETECT_DATA_FILENAME;
+	if (!file_exists($data_filename))
+		$data_filename = '';
 	
-	return $data_file;
+	$data_filename = apply_filters('geoip_detect_get_abs_db_filename', $data_filename);
+	
+	if (!$data_filename && (WP_DEBUG || defined('WP_TESTS_TITLE')))
+		trigger_error(__('No GeoIP Database file found. Please refer to the installation instructions in readme.txt.', 'geoip-detect'), E_USER_NOTICE);
+
+	return $data_filename;
 }
 
-function geoip_detect_update()
-{
-	wp_upload_dir();
-	
-	$download_url = 'http://geolite.maxmind.com/download/geoip/database/GeoLiteCity.dat.gz';
-	
-	$outFile = GEOIP_DETECT_DATA_FOLDER . GEOIP_DETECT_DATA_FILENAME;
-	
-	// Download
-	$tmpFile = download_url($download_url);
-	if (is_wp_error($tmpFile))
-		return $tmpFile->get_error_message();
-	
-	// Ungzip File
-	$zh = gzopen($tmpFile, 'r');
-	$h = fopen($outFile, 'w');
-	
-	if (!$zh)
-		return __('Downloaded file could not be opened for reading.', 'geoip-detect');
-	if (!$h)
-		return sprintf(__('Database could not be written (%s).', 'geoip-detect'), $outFile);
-
-	while ( ($string = gzread($zh, 4096)) != false )
-		fwrite($h, $string, strlen($string));
-	
-	gzclose($zh);
-	fclose($h);
-	
-	//unlink($tmpFile);
-	
-	return true;
-}
-
-if (!defined('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED'))
-	add_action('geoipdetectupdate', 'geoip_detect_update');
 
 
-// ------------- Admin --------------------
+// ------------- Admin GUI --------------------
 
 function geoip_detect_plugin_page()
 {
@@ -96,9 +83,10 @@ function geoip_detect_plugin_page()
 			break;
 	}
 	
-	if (file_exists(geoip_detect_get_abs_db_filename()))
+	$data_file = geoip_detect_get_abs_db_filename();
+	if (file_exists($data_file))
 	{
-		$last_update = filemtime(geoip_detect_get_abs_db_filename());
+		$last_update = filemtime($data_file);
 	}
 	else 
 	{
@@ -111,7 +99,7 @@ function geoip_detect_plugin_page()
 
 function geoip_detect_menu() {
 	require_once ABSPATH . '/wp-admin/admin.php';
-	add_submenu_page('tools.php', 'GeoIP Detect', 'GeoIP Detect', 'activate_plugins', __FILE__, 'geoip_detect_plugin_page');
+	add_submenu_page('tools.php', __('GeoIP Detection', 'geoip-detect'), __('GeoIP Detection', 'geoip-detect'), 'activate_plugins', __FILE__, 'geoip_detect_plugin_page');
 }
 add_action('admin_menu', 'geoip_detect_menu');
 
@@ -123,16 +111,4 @@ function geoip_detect_add_settings_link( $links ) {
 $plugin = plugin_basename( __FILE__ );
 add_filter( "plugin_action_links_$plugin", 'geoip_detect_add_settings_link' );
 
-function geoip_detect_activate()
-{
-	if ( !wp_next_scheduled( 'geoipdetectupdate' ) )
-		wp_schedule_event(time() + 7*24*60*60, 'weekly', 'geoipdetectupdate');
-}
-register_activation_hook(__FILE__, 'geoip_detect_activate');
 
-
-function geoip_detect_deactivate()
-{
-	wp_clear_scheduled_hook('geoipdetectupdate');
-}
-register_deactivation_hook(__FILE__, 'geoip_detect_deactivate');
