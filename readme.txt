@@ -59,9 +59,9 @@ If you need [more exact data](http://www.maxmind.com/en/geolite_city_accuracy "G
 
 Put this code somewhere in your template files:
 
-`$userInfo = geoip_detect_get_info_from_current_ip();
-if ($userInfo && $userInfo->country_code == 'DE')
-   echo 'Hallo! Schön dass Sie hier sind!';`
+    $userInfo = geoip_detect_get_info_from_current_ip();`
+    if ($userInfo && $userInfo->country_code == 'DE')`
+        echo 'Hallo! Schön dass Sie hier sind!';
    
 To see which property names are supported, refer to the [Plugin Backend](http://wordpress.org/plugins/geoip-detect/screenshots/).
 
@@ -71,8 +71,11 @@ To see which property names are supported, refer to the [Plugin Backend](http://
 
 == Changelog ==
 
+= 1.3 =
+* FIX: Manual install works again (was broken since 1.2)
+
 = 1.2 =
-* FIX: property region_name is now filled again (broken since 1.1) 
+* FIX: property region_name is now filled again (was broken since 1.1) 
 
 = 1.1 =
 * Add function `geoip_detect_get_external_ip_adress()`: Ask a webservice to tell me the external IP of the webserver.
