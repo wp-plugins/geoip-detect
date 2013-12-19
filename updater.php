@@ -56,10 +56,29 @@ function geoip_detect_update()
 if (!defined('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED'))
 	add_action('geoipdetectupdate', 'geoip_detect_update');
 
-function geoip_detect_activate()
+
+add_filter( 'cron_schedules', 'geoip_detect_cron_add_weekly' );
+function geoip_detect_cron_add_weekly( $schedules ) {
+	// Adds once weekly to the existing schedules.
+	if (!isset($schedules['weekly']))
+	{
+		$schedules['weekly'] = array(
+				'interval' => 604800,
+				'display' => __( 'Once Weekly' )
+		);
+	}
+	return $schedules;
+}
+
+function geoip_detect_set_cron_schedule()
 {
 	if ( !wp_next_scheduled( 'geoipdetectupdate' ) )
 		wp_schedule_event(time() + 7*24*60*60, 'weekly', 'geoipdetectupdate');
+}
+
+function geoip_detect_activate()
+{
+	geoip_detect_set_cron_schedule();
 }
 register_activation_hook(__FILE__, 'geoip_detect_activate');
 
