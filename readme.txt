@@ -2,7 +2,7 @@
 Contributors: benjaminpick
 Tags: geoip, ip, locator, latitude, longitude
 Requires at least: 3.5
-Tested up to: 3.7.1
+Tested up to: 3.8.1
 Stable tag: trunk
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
@@ -59,9 +59,13 @@ If you need [more exact data](http://www.maxmind.com/en/geolite_city_accuracy "G
 
 Put this code somewhere in your template files:
 
-    $userInfo = geoip_detect_get_info_from_current_ip();`
-    if ($userInfo && $userInfo->country_code == 'DE')`
+    $userInfo = geoip_detect_get_info_from_current_ip();
+    if ($userInfo && $userInfo->country_code == 'DE')
         echo 'Hallo! Schön dass Sie hier sind!';
+
+Or, add the plugin shortcode somewhere in a page content:
+
+    Heyo, over there in [geoip_detect property="country_name"] !
    
 To see which property names are supported, refer to the [Plugin Backend](http://wordpress.org/plugins/geoip-detect/screenshots/).
 
