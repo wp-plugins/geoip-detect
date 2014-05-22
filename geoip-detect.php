@@ -5,7 +5,7 @@ Plugin URI: http://www.yellowtree.de
 Description: Retrieving Geo-Information using the Maxmind GeoIP (Lite) Database.
 Author: YellowTree (Benjamin Pick)
 Author URI: http://www.yellowtree.de
-Version: 1.5
+Version: 1.6
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: geoip-detect
@@ -29,7 +29,10 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
-require_once(dirname(__FILE__) . '/vendor/geoip/geoip/src/geoipcity.inc');
+
+if (!class_exists('geoiprecord') && !class_exists('geoiprecord')) {
+	require_once(dirname(__FILE__) . '/vendor/geoip/geoip/src/geoipcity.inc');
+}
 
 require_once(dirname(__FILE__) . '/api.php');
 require_once(dirname(__FILE__) . '/filter.php');
@@ -78,13 +81,18 @@ function geoip_detect_plugin_page()
 				$message .= __('Update failed.', 'geoip-detect') .' '. $ret;
 
 			break;
-			
+
 		case 'lookup':
 			if (isset($_POST['ip']))
 			{
 				$ip = $_POST['ip'];
 				$ip_lookup_result = geoip_detect_get_info_from_ip($ip);
 			}
+			break;
+
+		case 'options':
+			$opt_value = isset($_POST['options']['set_css_country']) ? (int) $_POST['options']['set_css_country'] : 0;
+			update_option('geoip-detect-set_css_country', $opt_value);
 			break;
 	}
 	
@@ -100,6 +108,9 @@ function geoip_detect_plugin_page()
 	}
 	$next_cron_update = wp_next_scheduled( 'geoipdetectupdate' );
 	
+	$options = array();
+	$options['set_css_country'] = (int) get_option('geoip-detect-set_css_country');
+
 	include_once(dirname(__FILE__) . '/views/plugin_page.php');	
 }
 

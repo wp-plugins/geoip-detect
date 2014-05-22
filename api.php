@@ -46,23 +46,23 @@ function geoip_detect_get_external_ip_adress()
 	
 	$ip_cache = _geoip_detect_get_external_ip_adress_without_cache();
 	$ip_cache = apply_filters('geoip_detect_get_external_ip_adress', $ip_cache);
-	
+
 	return $ip_cache;
 }
 
 function _geoip_detect_get_external_ip_adress_without_cache()
 {
 	$ipservices = array(
-			'http://ipecho.net/plain',
 			'http://ipv4.icanhazip.com',
-			'http://ifconfig.me',
+			'http://ifconfig.me/ip',
 	);
 	
 	foreach ($ipservices as $url)
 	{
-		$result = wp_remote_retrieve_body(wp_remote_get($url, array('timeout' => 1)));
-		if ($result)
-			return $result;
+		$ret = wp_remote_get($url, array('timeout' => 1));
+		$body = wp_remote_retrieve_body($ret);
+		if ($body)
+			return $body;
 	}
 	return '0.0.0.0';
 }
