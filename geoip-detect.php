@@ -5,14 +5,14 @@ Plugin URI: http://www.yellowtree.de
 Description: Retrieving Geo-Information using the Maxmind GeoIP (Lite) Database.
 Author: YellowTree (Benjamin Pick)
 Author URI: http://www.yellowtree.de
-Version: 1.8
+Version: 2.0.1
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 Text Domain: geoip-detect
 Domain Path: /languages
 */
 /*
-Copyright 2013-2014 YellowTree, Siegen, Germany
+Copyright 2013-2015 YellowTree, Siegen, Germany
 Author: Benjamin Pick (b.pick@yellowtree.de)
 
 This program is free software; you can redistribute it and/or modify
@@ -32,43 +32,46 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 define('GEOIP_PLUGIN_FILE', __FILE__);
 
-if (!class_exists('geoiprecord') && !class_exists('geoiprecord')) {
-	require_once(dirname(__FILE__) . '/vendor/geoip/geoip/src/geoipcity.inc');
+require_once(__DIR__ . '/vendor/autoload.php');
+
+require_once(__DIR__ . '/geoip-detect-lib.php');
+require_once(__DIR__ . '/api.php');
+require_once(__DIR__ . '/legacy-api.php');
+require_once(__DIR__ . '/filter.php');
+
+require_once(__DIR__ . '/updater.php');
+
+require_once(__DIR__ . '/shortcode.php');
+
+
+define('GEOIP_DETECT_DATA_FILENAME', 'GeoLite2-City.mmdb');
+define('GEOIP_REQUIRED_PHP_VERSION', '5.3.1');
+define('GEOIP_REQUIRED_WP_VERSION', '3.5');
+
+// You can define these constants if you like.
+
+//define('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED', false);
+//define('GEOIP_DETECT_IP_CACHE_TIME', 2 * HOUR_IN_SECONDS);
+
+register_activation_hook( GEOIP_PLUGIN_FILE, 'geoip_detect_version_check' );
+
+function geoip_detect_version_check() {
+   global $wp_version;
+   
+    if ( version_compare( PHP_VERSION, GEOIP_REQUIRED_PHP_VERSION, '<' ) ) {
+        $flag = 'PHP';
+    	$min = GEOIP_REQUIRED_PHP_VERSION;
+    }
+    elseif ( version_compare( $wp_version, GEOIP_REQUIRED_WP_VERSION, '<' ) ) {
+        $flag = 'WordPress';
+   		$min = GEOIP_REQUIRED_WP_VERSION;
+    }
+    else
+        return;
+        
+    deactivate_plugins( basename( GEOIP_PLUGIN_FILE ) );
+    wp_die('<p>The <strong>GeoIP Detect</strong> plugin requires '.$flag.'  version '.$min.' or greater.</p><p>You can try to install an 1.x version of this plugin.</p>','Plugin Activation Error',  array( 'response'=>200, 'back_link'=>TRUE ) );
 }
-
-require_once(dirname(__FILE__) . '/api.php');
-require_once(dirname(__FILE__) . '/filter.php');
-
-require_once(dirname(__FILE__) . '/updater.php');
-
-require_once(dirname(__FILE__) . '/shortcode.php');
-
-
-define('GEOIP_DETECT_DATA_FILENAME', 'GeoLiteCity.dat');
-
-function geoip_detect_defines() {
-	if (!defined('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED'))
-		define('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED', false);
-	if (!defined('GEOIP_DETECT_IP_CACHE_TIME'))
-		define('GEOIP_DETECT_IP_CACHE_TIME', 2 * HOUR_IN_SECONDS);
-}
-add_action('plugins_loaded', 'geoip_detect_defines');
-
-
-function geoip_detect_get_abs_db_filename()
-{
-	$data_filename = dirname(__FILE__) . '/' . GEOIP_DETECT_DATA_FILENAME;
-	if (!file_exists($data_filename))
-		$data_filename = '';
-	
-	$data_filename = apply_filters('geoip_detect_get_abs_db_filename', $data_filename);
-	
-	if (!$data_filename && (WP_DEBUG || defined('WP_TESTS_TITLE')))
-		trigger_error(__('No GeoIP Database file found. Please refer to the installation instructions in readme.txt.', 'geoip-detect'), E_USER_NOTICE);
-
-	return $data_filename;
-}
-
 
 
 // ------------- Admin GUI --------------------
@@ -98,7 +101,7 @@ function geoip_detect_plugin_page()
 			if (isset($_POST['ip']))
 			{
 				$ip = $_POST['ip'];
-				$ip_lookup_result = geoip_detect_get_info_from_ip($ip);
+				$ip_lookup_result = geoip_detect2_get_info_from_ip($ip);
 			}
 			break;
 
@@ -112,14 +115,22 @@ function geoip_detect_plugin_page()
 	}
 	
 	$data_file = geoip_detect_get_abs_db_filename();
+	$last_update_db = 0;
+	$last_update = 0;
+
 	if (file_exists($data_file))
 	{
 		$last_update = filemtime($data_file);
+		
+		$reader = geoip_detect2_get_reader();
+		if (method_exists($reader, 'metadata')) {
+			$metadata = $reader->metadata();
+			$last_update_db = $metadata->buildEpoch;
+		}
 	}
 	else 
 	{
 		$message .= __('No GeoIP Database found. Click on the button "Update now" or follow the installation instructions.', 'geoip-detect');
-		$last_update = 0;
 	}
 	$next_cron_update = wp_next_scheduled( 'geoipdetectupdate' );
 	
@@ -129,7 +140,7 @@ function geoip_detect_plugin_page()
 		$options[$opt_name] = (int) get_option('geoip-detect-'. $opt_name);
 	}
 
-	include_once(dirname(__FILE__) . '/views/plugin_page.php');	
+	include_once(__DIR__ . '/views/plugin_page.php');	
 }
 
 function geoip_detect_menu() {
