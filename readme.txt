@@ -1,13 +1,13 @@
 === GeoIP Detection ===
 Contributors: benjaminpick
-Tags: geoip, ip, locator, latitude, longitude
+Tags: geoip, ip, maxmind, geolocation, locator, latitude, longitude
 Requires at least: 3.5
 Tested up to: 4.1
-Stable tag: 1.8
+Stable tag: trunk
 License: GPLv2 or later
 License URI: http://www.gnu.org/licenses/gpl-2.0.html
 
-Retrieving Geo-Information using the Maxmind GeoIP (Lite) Database.
+Retrieving Geo-Information using the Maxmind GeoIPv2 (Lite) Database.
 
 == Description ==
 
@@ -16,13 +16,16 @@ Provides geographic information detected by an IP adress. This can be used in th
 = Features: =
 
 * Provides 3 functions: 
-  * `geoip_detect_get_info_from_ip($ip)`: Lookup Geo-Information of the specified IP 
-  * `geoip_detect_get_info_from_current_ip()`: Lookup Geo-Information of the current website user
-  * `geoip_detect_get_external_ip_adress()`: Fetch the internet adress of the webserver
-* Auto-Update the GeoIP database once a week
-* For the property names, see the results of a specific IP in the wordpress backend (under Tools > GeoIP Detection).
-* You can include these properties into your posts and pages by using the shortcode `[geoip_detect property="country_name" default="(country could not be detected)"]` (where 'country_name' can be one of the other property names as well, and 'default' can be used (optionally) to show a different text when no information was found for this IP).
+  * `geoip_detect2_get_info_from_ip($ip, $locales = array('en'))`: Lookup Geo-Information of the specified IP 
+  * `geoip_detect2_get_info_from_current_ip($locales = array('en'))`: Lookup Geo-Information of the current website user
+  * `geoip_detect2_get_external_ip_adress()`: Fetch the internet adress of the webserver
+* Auto-Update the GeoIP database once a month
+* For the property names, see the results of a specific IP in the wordpress backend (under *Tools > GeoIP Detection*).
+* You can include these properties into your posts and pages by using the shortcode `[geoip_detect2 property="country.name" default="(country could not be detected)" lang="en"]` (where 'country.name' can be one of the other property names as well, and 'default' and 'lang' are optional).
 * When enabled on the plugin page, it adds CSS classes to the body tag such as `geoip-country-DE` and `geoip-continent-EU`.
+* When enabled on the plugin page, the client IP respects a reverse proxy of the server.
+
+See [API Documentation](https://github.com/yellowtree/wp-geoip-detect/wiki/API-Documentation) for more info.
 
 = How can I use these functions? =
 
@@ -32,33 +35,41 @@ Provides geographic information detected by an IP adress. This can be used in th
 * You show or hide content specific to a geographic target group
 * Etc. ... You tell me! I'm rather curious what you'll do with this plugin!
 
-*This product includes GeoLite data created by MaxMind, available from http://www.maxmind.com.*
+*This product includes GeoLite2 data created by MaxMind, available from http://www.maxmind.com.*
 
 == Installation ==
 
 This plugin does not contain the database itself. It is downloaded as soon as you activate it the first time (takes some seconds).
-You can try it out on the plugin page.
+
+Alternatively, go to Tools > GeoIP Detection and click on "Update now".
+
+Both methods only work if your /wp-content/uploads-Folder is writable.
+
+
+To check if it works, go to the plugin page and click "Lookup".
 
 == Frequently Asked Questions ==
 
 = How exact is this data? =
 
 Think of it as an "educated guess": IP adresses and their allocation change on a frequent basis.
-If you need [more exact data](http://www.maxmind.com/en/geolite_city_accuracy "GeoLiteCity Accuracy"), consider purchasing the commercial version of the data.
+If you need more exact data, consider purchasing the [commercial version of the data](https://www.maxmind.com/en/geoip2-city).
 
 = Technically speaking, how could I verify if my visitor comes from Germany? =
 
 Put this code somewhere in your template files:
 
-    $userInfo = geoip_detect_get_info_from_current_ip();
-    if ($userInfo && $userInfo->country_code == 'DE')
+    $userInfo = geoip_detect2_get_info_from_current_ip();
+    if ($userInfo->country->isoCode == 'de')
         echo 'Hallo! Schön dass Sie hier sind!';
+
+To see which property names are supported, refer to the [Plugin Backend](http://wordpress.org/plugins/geoip-detect/screenshots/).
 
 Or, add the plugin shortcode somewhere in the page or post content:
 
-    Heyo, over there in [geoip_detect property="country_name"] !
-   
-To see which property names are supported, refer to the [Plugin Backend](http://wordpress.org/plugins/geoip-detect/screenshots/).
+    Wie ist das Wetter in [geoip_detect2 property="country.name" lang="de" default="ihrem Land"] ?
+
+For more information, check the [API Documentation](https://github.com/yellowtree/wp-geoip-detect/wiki/API-Documentation).  
 
 #### What is planned to be implemented? ####
 
@@ -69,6 +80,12 @@ Maxmind released a new API version (v2) with localized country names and a accur
 1. Backend page (under Tools > GeoIP Detection)
 
 == Upgrade Notice == 
+
+= 2.0.1 =
+
+This major update uses the new Maxmind API (v2). 
+At least PHP 5.3.1 is required now.
+See Migration Guide at https://github.com/yellowtree/wp-geoip-detect/wiki/How-to-migrate-from-v1-to-v2
 
 = 1.7.1 =
 
@@ -84,6 +101,21 @@ Fixing automatic weekly updates.
 
 
 == Changelog ==
+
+= 2.0.1 =
+* NEW: Using v2 version of the API.
+See Migration Guide at [Github](https://github.com/yellowtree/wp-geoip-detect/wiki/How-to-migrate-from-v1-to-v2)
+
+Other changes:
+
+* NEW: The v2-functions now support location names in other locales. By default, they return the current site language if possible.
+* NEW: The new shortcode [geoip_detect2 ...] also supports a "lang"-Attribute.
+* NEW: IPv6 addresses are now supported as well.
+* Legacy function names and shortcode should work in most cases. For details check the guide above.
+
+= 2.0.0 =
+
+(Was not released on wordpress.org to make sure that development releases get this update as well.)
 
 = 1.8 =
 * NEW: Support reverse proxies (you have to enable it in the plugin options.)
