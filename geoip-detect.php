@@ -5,9 +5,9 @@ Plugin URI: http://www.yellowtree.de
 Description: Retrieving Geo-Information using the Maxmind GeoIP (Lite) Database.
 Author: YellowTree (Benjamin Pick)
 Author URI: http://www.yellowtree.de
-Version: 2.1.1
-License: GPLv2 or later
-License URI: http://www.gnu.org/licenses/gpl-2.0.html
+Version: 2.1.2
+License: GPLv3 or later
+License URI: http://www.gnu.org/licenses/gpl-3.0.html
 Text Domain: geoip-detect
 Domain Path: /languages
 */
@@ -17,7 +17,7 @@ Author: Benjamin Pick (b.pick@yellowtree.de)
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
+the Free Software Foundation; either version 3 of the License, or
 (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
@@ -32,19 +32,19 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 define('GEOIP_PLUGIN_FILE', __FILE__);
 
-require_once(__DIR__ . '/vendor/autoload.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/vendor/autoload.php');
 
-require_once(__DIR__ . '/geoip-detect-lib.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/geoip-detect-lib.php');
 
-require_once(__DIR__ . '/init.php');
-//require_once(__DIR__ . '/upgrade-plugin.php');
-require_once(__DIR__ . '/api.php');
-require_once(__DIR__ . '/legacy-api.php');
-require_once(__DIR__ . '/filter.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/init.php');
+//require_once(dirname(GEOIP_PLUGIN_FILE) . '/upgrade-plugin.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/api.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/legacy-api.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/filter.php');
 
-require_once(__DIR__ . '/updater.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/updater.php');
 
-require_once(__DIR__ . '/shortcode.php');
+require_once(dirname(GEOIP_PLUGIN_FILE) . '/shortcode.php');
 
 
 define('GEOIP_DETECT_DATA_FILENAME', 'GeoLite2-City.mmdb');
@@ -123,7 +123,7 @@ function geoip_detect_plugin_page()
 		$options[$opt_name] = (int) get_option('geoip-detect-'. $opt_name);
 	}
 
-	include_once(__DIR__ . '/views/plugin_page.php');	
+	include_once(dirname(GEOIP_PLUGIN_FILE) . '/views/plugin_page.php');	
 }
 
 function geoip_detect_menu() {
