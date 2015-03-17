@@ -2,7 +2,7 @@
 // You can use this in your theme/plugin to deactivate the auto-update
 //define('GEOIP_DETECT_AUTO_UPDATE_DEACTIVATED', true);
 
-
+define('GEOIP_DETECT_UPDATER_INCLUDED', true);
 
 // Needed for WP File functions. Cron doesn't work without it.
 require_once(ABSPATH.'/wp-admin/includes/file.php');
@@ -18,9 +18,12 @@ function geoip_detect_get_database_upload_filename()
 
 function geoip_detect_get_database_upload_filename_filter($filename_before)
 {
-	$filename = geoip_detect_get_database_upload_filename();
-	if (file_exists($filename))
-		return $filename;
+	$source = get_option('geoip-detect-source');
+	if ($source == 'auto' || empty($source)) {
+		$filename = geoip_detect_get_database_upload_filename();
+		if (file_exists($filename))
+			return $filename;
+	}
 	
 	return $filename_before;
 }
@@ -94,12 +97,6 @@ function geoip_detect_schedule_next_cron_run() {
 	$next = strtotime('first tuesday of next month + 1 day');
 	wp_schedule_single_event($next, 'geoipdetectupdate');
 }
-
-function geoip_detect_activate()
-{
-	geoip_detect_set_cron_schedule(true);
-}
-register_activation_hook(GEOIP_PLUGIN_FILE, 'geoip_detect_activate');
 
 
 function geoip_detect_deactivate()

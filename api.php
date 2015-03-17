@@ -28,7 +28,11 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
 		
 		
 		try {
-			$record = $reader->city($ip);
+			try {
+				$record = $reader->city($ip);
+			} catch (\MaxMind\Db\Reader\InvalidDatabaseException $e) {
+				$record = $reader->country($ip);
+			}
 		} catch(GeoIp2\Exception\GeoIp2Exception $e) {
 			if (WP_DEBUG)
 				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();
@@ -80,8 +84,14 @@ function geoip_detect2_get_reader($locales = null) {
 	
 	$reader = null;	
 	$data_file = geoip_detect_get_abs_db_filename();
-	if ($data_file)
-		$reader = new GeoIp2\Database\Reader($data_file, $locales);
+	if ($data_file) {
+		try {
+			$reader = new GeoIp2\Database\Reader($data_file, $locales);
+		} catch (Exception $e) {
+			if (WP_DEBUG)
+				echo 'Error while creating reader for "' . $data_file . '": ' . $e->getMessage();			
+		}
+	}
 	
 	/**
 	 * Filter: geoip_detect2_reader
