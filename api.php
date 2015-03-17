@@ -30,18 +30,25 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
 		try {
 			try {
 				$record = $reader->city($ip);
-			} catch (\MaxMind\Db\Reader\InvalidDatabaseException $e) {
+			} catch (\BadMethodCallException $e) {
 				$record = $reader->country($ip);
 			}
 		} catch(GeoIp2\Exception\GeoIp2Exception $e) {
+			throw $e;
 			if (WP_DEBUG)
 				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();
 		} catch(Exception $e) {
+			throw $e;
 			if (WP_DEBUG)
 				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();		
 		}
 	
 		$reader->close();
+	}
+	
+	// Always return a city record for API compatability. City attributes etc. return empty values.
+	if (is_object($record) && ! $record instanceof \GeoIp2\Model\City) {
+		$record = new \GeoIp2\Model\City($record->jsonSerialize());
 	}
 	
 	if ($record === null) {
