@@ -14,14 +14,15 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
 {
 	$orig_ip = $ip;
 	
-	$reader = geoip_detect2_get_reader($locales);
+	$locales = apply_filters('geoip_detect2_locales', $locales);
+	$reader = _geoip_detect2_get_reader($locales, true);
 
 	$record = null;
 
 	if ($reader) {
 		// When plugin installed on development boxes: 
 		// If the client IP is not a public IP, use the public IP of the server instead.
-		// Of course this only works if Internet Access works.
+		// Of course this only works if the internet can be accessed.
 		if ($ip == 'me' || (geoip_detect_is_ip($ip) && !geoip_detect_is_public_ip($ip))) {
 			$ip = geoip_detect2_get_external_ip_adress();
 		}
@@ -34,11 +35,9 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
 				$record = $reader->country($ip);
 			}
 		} catch(GeoIp2\Exception\GeoIp2Exception $e) {
-			throw $e;
 			if (WP_DEBUG)
 				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();
 		} catch(Exception $e) {
-			throw $e;
 			if (WP_DEBUG)
 				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();		
 		}
@@ -47,8 +46,8 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
 	}
 	
 	// Always return a city record for API compatability. City attributes etc. return empty values.
-	if (is_object($record) && ! $record instanceof \GeoIp2\Model\City) {
-		$record = new \GeoIp2\Model\City($record->jsonSerialize());
+	if (is_object($record) && ! $record instanceof \GeoIp2\Model\City && method_exists($record, 'jsonSerialize')) {
+		$record = new \GeoIp2\Model\City($record->jsonSerialize(), $locales);
 	}
 	
 	if ($record === null) {
@@ -63,12 +62,14 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
 	
 	/**
 	 * Filter: geoip_detect2_record_information
-	 * After loading the information from the GeoIP-Database, you can add or remove information from it.
+	 * After loading the information from the GeoIP-Database, you can add information to it.
+	 * 
 	 * @param GeoIp2\Model\City $record 	Information found. The 
 	 * @param string			 $orig_ip	IP that originally passed to the function.
+	 * @param string			 $locales	Desired locales
 	 * @return GeoIp2\Model\City
 	 */
-	$record = apply_filters('geoip_detect2_record_information', $record, $orig_ip);
+	$record = apply_filters('geoip_detect2_record_information', $record, $orig_ip, $locales);
 
 	return $record;
 }
@@ -82,35 +83,8 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null)
  * @return GeoIp2\Database\Reader 	The reader, ready to do its work. Don't forget to `close()` it afterwards. NULL if file not found (or other problems).
  * 									NULL if initialization went wrong (e.g., File not found.)
  */
-function geoip_detect2_get_reader($locales = null) {	
-	/**
-	 * Filter: geoip_detect2_locales
-	 * @param array(string) $locales Current locales.
-	 */
-	$locales = apply_filters('geoip_detect2_locales', $locales);
-	
-	$reader = null;	
-	$data_file = geoip_detect_get_abs_db_filename();
-	if ($data_file) {
-		try {
-			$reader = new GeoIp2\Database\Reader($data_file, $locales);
-		} catch (Exception $e) {
-			if (WP_DEBUG)
-				echo 'Error while creating reader for "' . $data_file . '": ' . $e->getMessage();			
-		}
-	}
-	
-	/**
-	 * Filter: geoip_detect2_reader
-	 * You can customize your reader here.
-	 * This filter will be called for every IP request.
-	 * 
-	 * @param GeoIp2\Database\ProviderInterface  Reader (by default: GeoLite City)
-	 * @param array(string)							Locale precedence
-	 */
-	$reader = apply_filters('geoip_detect2_reader', $reader, $locales);
-	
-	return $reader;
+function geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false) {	
+	return _geoip_detect2_get_reader($locales, false);
 }
 
 /**
