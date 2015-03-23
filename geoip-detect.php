@@ -3,9 +3,9 @@
 Plugin Name:     GeoIP Detection
 Plugin URI:      http://www.yellowtree.de
 Description:     Retrieving Geo-Information using the Maxmind GeoIP (Lite) Database.
-Author:          YellowTree (Benjamin Pick)
+Author:          Yellow Tree (Benjamin Pick)
 Author URI:      http://www.yellowtree.de
-Version:         2.3.0
+Version:         2.3.1
 License:         GPLv3 or later
 License URI:     http://www.gnu.org/licenses/gpl-3.0.html
 Text Domain:     geoip-detect
@@ -16,8 +16,10 @@ Requires WP:     3.5
 Requires PHP:    5.3.1
 */
 
+define('GEOIP_DETECT_VERSION', '2.3.1');
+
 /*
-Copyright 2013-2015 YellowTree, Siegen, Germany
+Copyright 2013-2015 Yellow Tree, Siegen, Germany
 Author: Benjamin Pick (b.pick@yellowtree.de)
 
 This program is free software; you can redistribute it and/or modify
@@ -35,18 +37,24 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
-define('GEOIP_DETECT_VERSION', '2.3.0');
+define('GEOIP_DETECT_DATA_FILENAME', 'GeoLite2-City.mmdb');
+define('GEOIP_REQUIRED_PHP_VERSION', '5.3.1');
+define('GEOIP_REQUIRED_WP_VERSION', '3.5');
 
 define('GEOIP_PLUGIN_FILE', __FILE__);
 define('GEOIP_PLUGIN_DIR', dirname(GEOIP_PLUGIN_FILE));
 define('GEOIP_PLUGIN_BASENAME', plugin_basename(GEOIP_PLUGIN_FILE));
+
+// Do PHP & WP Version check
+require_once(GEOIP_PLUGIN_DIR . '/init.php');
+if (!geoip_detect_version_check()) 
+	return; // Do nothing except emitting the admin notice
 
 require_once(GEOIP_PLUGIN_DIR . '/vendor/autoload.php');
 
 require_once(GEOIP_PLUGIN_DIR . '/geoip-detect-lib.php');
 
 require_once(GEOIP_PLUGIN_DIR . '/upgrade-plugin.php');
-require_once(GEOIP_PLUGIN_DIR . '/init.php');
 require_once(GEOIP_PLUGIN_DIR . '/api.php');
 require_once(GEOIP_PLUGIN_DIR . '/legacy-api.php');
 require_once(GEOIP_PLUGIN_DIR . '/filter.php');
@@ -57,11 +65,8 @@ if (!defined('GEOIP_DETECT_UPDATER_INCLUDED'))
 	define('GEOIP_DETECT_UPDATER_INCLUDED', false);
 
 @include_once('data-sources/hostinfo.php');
-
-
-define('GEOIP_DETECT_DATA_FILENAME', 'GeoLite2-City.mmdb');
-define('GEOIP_REQUIRED_PHP_VERSION', '5.3.1');
-define('GEOIP_REQUIRED_WP_VERSION', '3.5');
+//@include_once('data-sources/auto.php');
+//@include_once('data-sources/manual.php');
 
 // You can define these constants if you like.
 
@@ -176,10 +181,10 @@ function geoip_detect_menu() {
 add_action('admin_menu', 'geoip_detect_menu');
 
 function geoip_detect_add_settings_link( $links ) {
-	$settings_link = '<a href="tools.php?page=geoip-detect/geoip-detect.php">' . __('Plugin page', 'geoip-detect') . '</a>';
+	$settings_link = '<a href="tools.php?page=' . GEOIP_PLUGIN_BASENAME . '">' . __('Plugin page', 'geoip-detect') . '</a>';
 	array_push( $links, $settings_link );
 	return $links;
 }
-add_filter( "plugin_action_links_" . plugin_basename( GEOIP_PLUGIN_FILE ), 'geoip_detect_add_settings_link' );
+add_filter( "plugin_action_links_" . GEOIP_PLUGIN_BASENAME, 'geoip_detect_add_settings_link' );
 
 
