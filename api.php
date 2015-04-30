@@ -1,118 +1,108 @@
 <?php
 
+use YellowTree\GeoipDetect\DataSources\DataSourceRegistry;
 /**
  * Get Geo-Information for a specific IP
- * @param string 				$ip IP-Adress (IPv4 or IPv6). 'me' is the current IP of the server.
- * @param array(string)			List of locale codes to use in name property
- * 								from most preferred to least preferred. (Default: Site language, en)
- * @return GeoIp2\Model\City	GeoInformation.
+ * @param string 			$ip 		IP-Adress (IPv4 or IPv6). 'me' is the current IP of the server.
+ * @param array(string)		$locales 	List of locale codes to use in name property
+ * 										from most preferred to least preferred. (Default: Site language, en)
+ * @param boolean			$skipCache	TRUE: Do not use cache for this request. 
+ * @return YellowTree\GeoipDetect\DataSources\City	GeoInformation. (Actually, this is a subclass of \GeoIp2\Model\City)
  * 
  * @see https://github.com/maxmind/GeoIP2-php				API Usage
  * @see http://dev.maxmind.com/geoip/geoip2/web-services/	API Documentation
+ *
+ * @since 2.0.0
+ * @since 2.4.0 New parameter $skipCache
  */
-function geoip_detect2_get_info_from_ip($ip, $locales = null)
+function geoip_detect2_get_info_from_ip($ip, $locales = null, $skipCache = false)
 {
-	$orig_ip = $ip;
-	
 	$locales = apply_filters('geoip_detect2_locales', $locales);
-	$reader = _geoip_detect2_get_reader($locales, true);
-
-	$record = null;
-
-	if ($reader) {
-		// When plugin installed on development boxes: 
-		// If the client IP is not a public IP, use the public IP of the server instead.
-		// Of course this only works if the internet can be accessed.
-		if ($ip == 'me' || (geoip_detect_is_ip($ip) && !geoip_detect_is_public_ip($ip))) {
-			$ip = geoip_detect2_get_external_ip_adress();
-		}
-		
-		
-		try {
-			try {
-				$record = $reader->city($ip);
-			} catch (\BadMethodCallException $e) {
-				$record = $reader->country($ip);
-			}
-		} catch(GeoIp2\Exception\GeoIp2Exception $e) {
-			if (WP_DEBUG)
-				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();
-		} catch(Exception $e) {
-			if (WP_DEBUG)
-				echo 'Error while looking up "' . $ip . '": ' . $e->getMessage();		
-		}
 	
-		$reader->close();
+	$data = array();
+	
+	if (!$skipCache) {
+		$data = _geoip_detect2_get_data_from_cache($ip);
+	}
+	
+	if (!$data) {
+		$outError = '';
+
+		$reader = _geoip_detect2_get_reader(array('en') /* will be replaced anyway */, true, $outSourceId);
+		$record = _geoip_detect2_get_record_from_reader($reader, $ip, $outError);
+		$data   = _geoip_detect2_record_enrich_data($record, $ip, $outSourceId, $outError);
+		
+		if (WP_DEBUG && !GEOIP_DETECT_DOING_UNIT_TESTS && $outError) {
+			trigger_error($outError, E_USER_NOTICE);
+		}
+
+		if (!$outError)
+			_geoip_detect2_add_data_to_cache($data, $ip);
 	}
 	
 	// Always return a city record for API compatability. City attributes etc. return empty values.
-	if (is_object($record) && ! $record instanceof \GeoIp2\Model\City && method_exists($record, 'jsonSerialize')) {
-		$record = new \GeoIp2\Model\City($record->jsonSerialize(), $locales);
-	}
-	
-	if ($record === null) {
-		// TODO : Allow to set default by filter
-
-		$data = array('traits' => array('ip_address' => $ip));
-		$record = new \GeoIp2\Model\City($data, array('en'));
-		$record->isEmpty = true;
-	} else {
-		$record->isEmpty = false;
-	}
+	$record = new \YellowTree\GeoipDetect\DataSources\City($data, $locales);
 	
 	/**
 	 * Filter: geoip_detect2_record_information
-	 * After loading the information from the GeoIP-Database, you can add information to it.
+	 * Use geoip_detect2_record_data instead if you want to modify the data.
 	 * 
-	 * @param GeoIp2\Model\City $record 	Information found. The 
-	 * @param string			 $orig_ip	IP that originally passed to the function.
-	 * @param string			 $locales	Desired locales
-	 * @return GeoIp2\Model\City
+	 * @return \YellowTree\GeoipDetect\DataSources\City
 	 */
-	$record = apply_filters('geoip_detect2_record_information', $record, $orig_ip, $locales);
+	$record = apply_filters('geoip_detect2_record_information', $record, $ip, $locales);
 
 	return $record;
 }
 
 /**
- * Get the Maxmind Reader
+ * Get Geo-Information for the current IP
+ *
+ * @param array(string)		$locales	List of locale codes to use in name property
+ * 										from most preferred to least preferred. (Default: Site language, en)
+ * @param boolean			$skipCache	TRUE: Do not use cache for this request.
+ * @return YellowTree\GeoipDetect\DataSources\City	GeoInformation.
+ *
+ * @since 2.0.0
+ * @since 2.4.0 New parameter $skipCache
+ */
+function geoip_detect2_get_info_from_current_ip($locales = null, $skipCache = false)
+{
+	return geoip_detect2_get_info_from_ip(geoip_detect2_get_client_ip(), $locales, $skipCache);
+}
+
+
+/**
+ * Get the Reader class of the currently chosen source.
  * (Use this if you want to use other methods than "city" or otherwise customize behavior.)
  * 
  * @param array(string)				List of locale codes to use in name property
  * 									from most preferred to least preferred. (Default: Site language, en)
- * @return GeoIp2\Database\Reader 	The reader, ready to do its work. Don't forget to `close()` it afterwards. NULL if file not found (or other problems).
- * 									NULL if initialization went wrong (e.g., File not found.)
+ * 
+ * @return \YellowTree\GeoipDetect\DataSources\ReaderInterface 	The reader, ready to do its work. Don't forget to `close()` it afterwards. NULL if file not found (or other problems).
+ * 
+ * @since 2.0.0
  */
-function geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false) {	
+function geoip_detect2_get_reader($locales = null) {	
 	return _geoip_detect2_get_reader($locales, false);
 }
 
 /**
  * Return a human-readable label of the currently chosen source.
- * @return string
- */
-function geoip_detect2_get_current_source_description() {
-	$reader = geoip_detect2_get_reader();
-	if (!method_exists($reader, 'metadata'))
-		return 'Unknown';
-	$metadata = $reader->metadata();
-	$desc = $metadata->description;
-	if (isset($desc['en']))
-		$desc = $desc['en'];
-	
-	return $desc;
-}
-
-/**
- * Get Geo-Information for the current IP
+ * @param string|\YellowTree\GeoipDetect\DataSources\City Id of the source or the returned record
+ * @return string The label.
  * 
- * @param array(string)			List of locale codes to use in name property
- * 								from most preferred to least preferred. (Default: Site language, en)
- * @return GeoIp2\Model\City	GeoInformation.
+ * @since 2.3.1
+ * @since 2.4.0 new parameter $source
  */
-function geoip_detect2_get_info_from_current_ip($locales = null)
-{
-	return geoip_detect2_get_info_from_ip(geoip_detect2_get_client_ip(), $locales);
+function geoip_detect2_get_current_source_description($source = null) {
+	if (is_object($source) && $source instanceof \YellowTree\GeoipDetect\DataSources\City) {
+		$source = $source->extra->source;
+	}
+	$source = DataSourceRegistry::getInstance()->getSource($source);
+	if ($source) {
+		return $source->getShortLabel();
+	}
+	return 'Unknown';
 }
 
 /**
@@ -120,6 +110,8 @@ function geoip_detect2_get_info_from_current_ip($locales = null)
  * For security reasons, the reverse proxy usage has to be enabled on the settings page.
  * 
  * @return string Client Ip (IPv4 or IPv6)
+ * 
+ * @since 2.0.0
  */
 function geoip_detect2_get_client_ip() {
 	$ip = '::1';
@@ -165,6 +157,8 @@ function geoip_detect2_get_client_ip() {
  * In this case we need to ask an internet server which IP adress our internet connection has.
  * 
  * @return string The detected IPv4 Adress. If none is found, '0.0.0.0' is returned instead.
+ * 
+ * @since 2.0.0
  */
 function geoip_detect2_get_external_ip_adress()
 {

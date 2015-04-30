@@ -2,6 +2,8 @@
 // This file contains function that are necessary for the plugin, but not deemed as API.
 // Their name / parameter may change without warning.
 
+use YellowTree\GeoipDetect\DataSources\DataSourceRegistry;
+
 /*
  * Get the Maxmind Reader
  * (Use this if you want to use other methods than "city" or otherwise customize behavior.)
@@ -12,7 +14,7 @@
  * @return GeoIp2\Database\Reader 	The reader, ready to do its work. Don't forget to `close()` it afterwards. NULL if file not found (or other problems).
  * NULL if initialization went wrong (e.g., File not found.)
  */
-function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false) {
+function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false, &$sourceId = '') {
 	if (! $skipLocaleFilter) {
 		/**
 		 * Filter: geoip_detect2_locales
@@ -24,16 +26,11 @@ function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false) {
 	}
 	
 	$reader = null;
-	$data_file = geoip_detect_get_abs_db_filename();
-	if ($data_file) {
-		try {
-			$reader = new GeoIp2\Database\Reader ( $data_file, $locales );
-		} catch ( Exception $e ) {
-			if (WP_DEBUG)
-				echo 'Error while creating reader for "' . $data_file . '": ' . $e->getMessage ();
-		}
+	$source = DataSourceRegistry::getInstance()->getCurrentSource();
+	if ($source) {
+		$reader = $source->getReader($locales);
+		$sourceId = $source->getId();
 	}
-	
 	/**
 	 * Filter: geoip_detect2_reader
 	 * You can customize your reader here.
@@ -44,71 +41,126 @@ function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false) {
 	 * @param
 	 *        	array(string)							Locale precedence
 	 */
-	$reader = apply_filters ( 'geoip_detect2_reader', $reader, $locales );
-	
+	$reader = apply_filters('geoip_detect2_reader', $reader, $locales );
+
 	return $reader;
 }
 
-
-function geoip_detect_validate_filename($filename) {
-	if (!substr($filename, -5) === '.mmdb')
-		return '';
-
-	if (file_exists($filename) && is_readable($filename))
-		return $filename;
-	
-	if (file_exists(ABSPATH . $filename) && is_readable(ABSPATH . $filename))
-		return ABSPATH . $filename;
-
-	return '';
+function _ip_to_s($ip) {
+	$binary = @inet_pton($ip);
+	return base64_encode($binary);
 }
 
-function geoip_detect_get_abs_db_filename()
-{
-	$data_filename = '';
+function _geoip_detect2_get_data_from_cache($ip) {
+	// Don't cache for file access based sources (not worth the effort/time)
+	$sources_not_cachable = apply_filters('geoip2_detect_sources_not_cachable', array('auto', 'manual'));	
+	if (in_array(get_option('geoip-detect-source'), $sources_not_cachable))
+		return null;
+
+	$ip_s = _ip_to_s($ip);
+	if (!$ip_s)
+		return null;
+		
+	$data = get_transient('geoip_detect_c_' . $ip_s);
+	if (is_array($data) && $data['extra']['source'] != get_option('geoip-detect-source'))
+		return null;
 	
-	$source = get_option('geoip-detect-source');
-	if ($source == 'manual') {
-		$data_filename = get_option('geoip-detect-manual_file_validated');
-		if (!file_exists($data_filename))
-			$data_filename = '';
+	return $data;
+}
+
+function _geoip_detect2_add_data_to_cache($data, $ip) {
+	// Don't cache for file access based sources (not worth the effort/time)
+	$sources_not_cachable = apply_filters('geoip2_detect_sources_not_cachable', array('auto', 'manual'));	
+	if (in_array($data['extra']['source'], $sources_not_cachable))
+		return;
+	
+	$data['extra']['cached'] = time();
+	unset($data['maxmind']['queries_remaining']);
+	
+	$ip_s = _ip_to_s($ip);
+	// Do not cache invalid IPs
+	if (!$ip_s)
+		return;
+	
+	// Do not cache error lookups (they might be temporary)
+	if (!empty($data['extra']['error']))
+		return;
+
+	set_transient('geoip_detect_c_' . $ip_s, $data, GEOIP_DETECT_READER_CACHE_TIME);
+}
+
+function _geoip_detect2_get_record_from_reader($reader, $ip, &$error) {
+	$record = null;
+	
+	if ($reader) {
+		// When plugin installed on development boxes:
+		// If the client IP is not a public IP, use the public IP of the server instead.
+		// Of course this only works if the internet can be accessed.
+		if ($ip == 'me' || (geoip_detect_is_ip($ip) && !geoip_detect_is_public_ip($ip))) {
+			$ip = geoip_detect2_get_external_ip_adress();
+		}
+	
+		try {
+			try {
+				$record = $reader->city($ip);
+			} catch (\BadMethodCallException $e) {
+				$record = $reader->country($ip);
+			}
+		} catch(\Exception $e) {
+			$error = 'Lookup Error: ' . $e->getMessage();
+		}
+	
+		$reader->close();
+	} else {
+		$error = 'No reader was found. Check if the configuration is complete and correct.';
 	}
 	
-	if (!$data_filename) {
-		$data_filename = __DIR__ . '/' . GEOIP_DETECT_DATA_FILENAME;
-		if (!file_exists($data_filename))
-			$data_filename = '';
+	return $record;
+}
+
+function _geoip_detect2_record_enrich_data($record, $ip, $sourceId, $error) {
+	$data = array('traits' => array('ip_address' => $ip), 'is_empty' => true);
+	if (is_object($record) && method_exists($record, 'jsonSerialize')) {
+		$data = $record->jsonSerialize();
+		$data['is_empty'] = false;
 	}
-	
-	$data_filename = apply_filters('geoip_detect_get_abs_db_filename', $data_filename);
-	
-	if (!$data_filename && (defined('WP_TESTS_TITLE')))
-		trigger_error(__('No GeoIP Database file found. Please refer to the installation instructions in readme.txt.', 'geoip-detect'), E_USER_NOTICE);
+	$data['extra']['source'] = $sourceId;
+	$data['extra']['cached'] = 0;
+	$data['extra']['error'] = $error;
 
-	return $data_filename;
+	/**
+	 * Filter: geoip_detect2_record_data
+	 * After loading the information from the GeoIP-Database, you can add information to it.
+	 *
+	 * @param array $data 	Information found.
+	 * @param string	 $orig_ip	IP that originally passed to the function.
+	 * @return array
+	 */
+	$data = apply_filters('geoip_detect2_record_data', $data, $ip);
+
+	return $data;
 }
 
-function geoip_detect_get_database_upload_filename()
-{
-	$upload_dir = wp_upload_dir();
-	$dir = $upload_dir['basedir'];
+/**
+ * GeoIPv2 doesn't always include a timezone when v1 did.
+ * @param array $record
+ */
+function _geoip_detect2_try_to_fix_timezone($data) {
+	if (!empty($data['location']['timezone']))
+		return $data;
 
-	$filename = $dir . '/' . GEOIP_DETECT_DATA_FILENAME;
-	return $filename;
-}
-
-function geoip_detect_get_database_upload_filename_filter($filename_before)
-{
-	$source = get_option('geoip-detect-source');
-	if ($source == 'auto' || empty($source)) {
-		$filename = geoip_detect_get_database_upload_filename();
-		if (file_exists($filename))
-			return $filename;
+	if (!function_exists('_geoip_detect_get_time_zone')) {
+		require_once(__DIR__ . '/vendor/timezone.php');
 	}
 
-	return $filename_before;
+	if (!empty($data['country']['iso_code']))
+		$data['location']['time_zone'] = _geoip_detect_get_time_zone($data['country']['iso_code'], @$data['mostSpecificSubdivision']['isoCode']);
+	else
+		$data['location']['time_zone'] = null;
+
+	return $data;
 }
-add_filter('geoip_detect_get_abs_db_filename', 'geoip_detect_get_database_upload_filename_filter');
+add_filter('geoip_detect2_record_data', '_geoip_detect2_try_to_fix_timezone');
 
 /**
  * IPv6-Adresses can be written in different formats. Make sure they are standardized.
@@ -194,4 +246,38 @@ function _geoip_detect_get_external_ip_adress_without_cache()
 		}
 	}
 	return '0.0.0.0';
+}
+
+// @see https://stackoverflow.com/questions/2637945/getting-relative-path-from-absolute-path-in-php
+function geoip_detect_get_relative_path($from, $to)
+{
+	// some compatibility fixes for Windows paths
+	$from = is_dir($from) ? rtrim($from, '\/') . '/' : $from;
+	$to   = is_dir($to)   ? rtrim($to, '\/') . '/'   : $to;
+	$from = str_replace('\\', '/', $from);
+	$to   = str_replace('\\', '/', $to);
+
+	$from     = explode('/', $from);
+	$to       = explode('/', $to);
+	$relPath  = $to;
+
+	foreach($from as $depth => $dir) {
+		// find first non-matching dir
+		if($dir === $to[$depth]) {
+			// ignore this directory
+			array_shift($relPath);
+		} else {
+			// get number of remaining dirs to $from
+			$remaining = count($from) - $depth;
+			if($remaining > 1) {
+				// add traversals up to first matching dir
+				$padLength = (count($relPath) + $remaining - 1) * -1;
+				$relPath = array_pad($relPath, $padLength, '..');
+				break;
+			} else {
+				$relPath[0] = './' . $relPath[0];
+			}
+		}
+	}
+	return implode('/', $relPath);
 }
