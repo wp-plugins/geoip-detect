@@ -61,7 +61,8 @@ function geoip_detect_option_page() {
 	$message = '';
 	
 	$numeric_options = array('set_css_country', 'has_reverse_proxy');
-	$option_names = $numeric_options;
+	$text_options = array('external_ip');
+	$option_names = array_merge($numeric_options, $text_options);
 	
 	switch(@$_POST['action'])
 	{
@@ -98,6 +99,19 @@ function geoip_detect_option_page() {
 			break;
 			
 		case 'options':	
+			// Empty IP Cache
+			delete_transient('geoip_detect_external_ip');
+			
+			if (!empty($_POST['options']['external_ip'])) {
+				if (!geoip_detect_is_ip($_POST['options']['external_ip'])) {
+					$message .= 'The external IP "' . esc_html($_POST['options']['external_ip']) . '" is not a valid IP.';
+					unset($_POST['options']['external_ip']);
+				} else if (!geoip_detect_is_public_ip($_POST['options']['external_ip'])) {
+					$message .= 'Warning: The external IP "' . esc_html($_POST['options']['external_ip']) . '" is not a public internet IP, so it will probably not work.';
+				}
+			}
+			
+			
 			foreach ($option_names as $opt_name) {
 				if (in_array($opt_name, $numeric_options))
 					$opt_value = isset($_POST['options'][$opt_name]) ? (int) $_POST['options'][$opt_name] : 0;
@@ -108,9 +122,9 @@ function geoip_detect_option_page() {
 			break;
 	}
 
-	$options = array();
+	$wp_options = array();
 	foreach ($option_names as $opt_name) {
-		$options[$opt_name] = get_option('geoip-detect-'. $opt_name);
+		$wp_options[$opt_name] = get_option('geoip-detect-'. $opt_name);
 	}
 	
 	$ipv6_supported = GEOIP_DETECT_IPV6_SUPPORTED;

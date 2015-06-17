@@ -4,7 +4,7 @@ $options = $currentSource->getParameterHTML();
 
 <div class="wrap">
 	<h2><?php _e('GeoIP Detection', 'geoip-detect');?></h2>
-	<a href="tools.php?page=<?= GEOIP_PLUGIN_BASENAME ?>">Test IP Detection Lookup</a>
+	<p><a href="tools.php?page=<?= GEOIP_PLUGIN_BASENAME ?>">Test IP Detection Lookup</a></p>
 	<?php if (!empty($message)): ?>
 		<p class="geoip_detect_error">
 		<?php echo $message; ?>
@@ -49,19 +49,29 @@ $options = $currentSource->getParameterHTML();
 		<input type="hidden" name="action" value="options" />
 		<h3>General Options</h3>
 		<p>
-			<input type="checkbox" name="options[set_css_country]" value="1" <?php if (!empty($options['set_css_country'])) { echo 'checked="checked"'; } ?>>&nbsp;<?php _e('Add a country-specific CSS class to the &lt;body&gt;-Tag.', 'geoip-detect'); ?><br />
+			<input type="checkbox" name="options[set_css_country]" value="1" <?php if (!empty($wp_options['set_css_country'])) { echo 'checked="checked"'; } ?>>&nbsp;<?php _e('Add a country-specific CSS class to the &lt;body&gt;-Tag.', 'geoip-detect'); ?><br />
 		</p>
 		<p>
-			<input type="checkbox" name="options[has_reverse_proxy]" value="1" <?php if (!empty($options['has_reverse_proxy'])) { echo 'checked="checked"'; } ?>>&nbsp;The server is behind a reverse proxy<em>
+			<input type="checkbox" name="options[has_reverse_proxy]" value="1" <?php if (!empty($wp_options['has_reverse_proxy'])) { echo 'checked="checked"'; } ?>>&nbsp;The server is behind a reverse proxy<em>
 			<span class="detail-box">
 			<?php if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) : ?>
-			<?php printf(__('(With Proxy: %s - Without Proxy: %s)', 'geoip-detect'), $_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['REMOTE_ADDR']); ?><br />
+			<?php printf(__('(With Proxy: %s - Without Proxy: %s - Client IP with current configuration: %s)', 'geoip-detect'), $_SERVER['HTTP_X_FORWARDED_FOR'], $_SERVER['REMOTE_ADDR'], geoip_detect2_get_client_ip()); ?><br />
 			<?php else: ?>
 			<?php echo "(This doesn't seem to be the case.)"; ?>
 			<?php endif; ?>
 			</em>
 			</span>
 		</p>
+		<p>
+			External IP of this server: <input type="text" name="options[external_ip]" value="<?php echo esc_attr($wp_options['external_ip']); ?>" placeholder="auto" />
+			<span class="detail-box">
+			Current value: <?php echo geoip_detect2_get_external_ip_adress(); ?><br />
+			If empty: Try to use an ip service to detect it (Internet connection is necessary). If this is not possible, 0.0.0.0 will be returned.<br />
+			(This external adress will be used when the request IP adress is not a public IP, e.g. 127.0.0.1)
+			
+			</span>
+		</p>
+		
 
 		<p>
 			<input type="submit" class="button button-primary" value="<?php _e('Save', 'geoip-detect'); ?>" />
@@ -82,6 +92,7 @@ $options = $currentSource->getParameterHTML();
 </div>
 <style>
 .geoip_detect_error {
+	clear: both;
     background-color: rgb(255, 255, 255);
     border-left: rgb(255, 0, 0) solid 4px;
     box-shadow: 0 1px 1px 0 rgba(0, 0, 0, 0.1);
