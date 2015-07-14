@@ -10,7 +10,6 @@ function geoip_detect_defines() {
 	
 	if (!defined('GEOIP_DETECT_IPV6_SUPPORTED'))
 		define('GEOIP_DETECT_IPV6_SUPPORTED', defined('AF_INET6'));
-		
 }
 add_action('plugins_loaded', 'geoip_detect_defines');
 

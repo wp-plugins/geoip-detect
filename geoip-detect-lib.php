@@ -4,6 +4,39 @@
 
 use YellowTree\GeoipDetect\DataSources\DataSourceRegistry;
 
+/**
+ * Take the parameter options and add the default values.
+ * @param array $options
+ * return $options
+ */
+
+function _geoip_detect2_process_options($options) {
+	
+	// For backwards compat 2.4.0-2.5.0
+	if (is_bool($options)) {
+		_doing_it_wrong('GeoIP Detection Plugin: geoip_detect2_get_info_from_ip()', '$skipCache has been renamed to $options. Instead of TRUE, now use "array(\'skipCache\' => TRUE)".', '2.5.0');
+		$value = $options;
+		$options = array();
+		$options['skipCache'] = $value;
+	}
+	
+	/**
+	 * Filter: geoip_detect2_options
+	 * You can programmatically change the defaults etc.
+	 *
+	 * @param array $options The options array
+	 */
+	$options = apply_filters('geoip_detect2_options', $options);
+	
+	
+	$defaultOptions = array(
+			'skipCache' => false,
+	);
+	$options = $options + $defaultOptions;
+	
+	return $options;
+}
+
 /*
  * Get the Maxmind Reader
  * (Use this if you want to use other methods than "city" or otherwise customize behavior.)
@@ -14,7 +47,7 @@ use YellowTree\GeoipDetect\DataSources\DataSourceRegistry;
  * @return GeoIp2\Database\Reader 	The reader, ready to do its work. Don't forget to `close()` it afterwards. NULL if file not found (or other problems).
  * NULL if initialization went wrong (e.g., File not found.)
  */
-function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false, &$sourceId = '') {
+function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false, &$sourceId = '', $options = array()) {
 	if (! $skipLocaleFilter) {
 		/**
 		 * Filter: geoip_detect2_locales
@@ -28,7 +61,7 @@ function _geoip_detect2_get_reader($locales = null, $skipLocaleFilter = false, &
 	$reader = null;
 	$source = DataSourceRegistry::getInstance()->getCurrentSource();
 	if ($source) {
-		$reader = $source->getReader($locales);
+		$reader = $source->getReader($locales, $options);
 		$sourceId = $source->getId();
 	}
 	/**
@@ -147,6 +180,8 @@ function _geoip_detect2_record_enrich_data($record, $ip, $sourceId, $error) {
 
 /**
  * GeoIPv2 doesn't always include a timezone when v1 did.
+ * Region ids have changed, so countries with several time zones are out of luck.
+ * 
  * @param array $record
  */
 function _geoip_detect2_try_to_fix_timezone($data) {
@@ -157,10 +192,11 @@ function _geoip_detect2_try_to_fix_timezone($data) {
 		require_once(__DIR__ . '/vendor/timezone.php');
 	}
 
-	if (!empty($data['country']['iso_code']))
-		$data['location']['time_zone'] = _geoip_detect_get_time_zone($data['country']['iso_code'], @$data['mostSpecificSubdivision']['isoCode']);
-	else
+	if (!empty($data['country']['iso_code'])) {
+		$data['location']['time_zone'] = _geoip_detect_get_time_zone($data['country']['iso_code'], null);
+	} else {
 		$data['location']['time_zone'] = null;
+	}
 
 	return $data;
 }
@@ -187,10 +223,10 @@ function geoip_detect_is_ip_equal($ip1, $ip2) {
 	return !empty($one) && $one == $two;
 }
 
-function geoip_detect_is_ip($ip) {
+function geoip_detect_is_ip($ip, $noIpv6 = false) {
 	$flags = FILTER_FLAG_IPV4;
 	
-	if (GEOIP_DETECT_IPV6_SUPPORTED)
+	if (GEOIP_DETECT_IPV6_SUPPORTED && !$noIpv6)
 		$flags = $flags | FILTER_FLAG_IPV6;
 	
 	return filter_var($ip, FILTER_VALIDATE_IP, $flags) !== false;
@@ -304,4 +340,21 @@ function geoip_detect_get_relative_path($from, $to)
 		}
 	}
 	return implode('/', $relPath);
+}
+
+function _geoip_maybe_disable_pagecache() {
+	if (!get_option('geoip-detect-disable_pagecache'))
+		return false;
+	
+	// WP Super Cache, W3 Total Cache
+	if (!defined('DONOTCACHEPAGE'))
+		define('DONOTCACHEPAGE', true);
+	
+	if (!defined('DONOTCACHEOBJECT'))
+		define('DONOTCACHEOBJECT', true);
+	
+	if (!defined('DONOTCACHEDB'))
+		define('DONOTCACHEDB', true);
+	
+	return true;
 }

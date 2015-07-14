@@ -34,13 +34,14 @@ function geoip_detect_lookup_page()
 			{
 				$request_ip = $_POST['ip'];
 				$request_skipCache = !empty($_POST['skip_cache']);
+				$options = array('skipCache' => $request_skipCache);
 				
 				$request_locales = null;
 				if (!empty($_POST['locales']))
 					$request_locales = explode(',', $_POST['locales']);
 				
 				$start = microtime(true);
-				$ip_lookup_result = geoip_detect2_get_info_from_ip($request_ip, $request_locales, $request_skipCache);
+				$ip_lookup_result = geoip_detect2_get_info_from_ip($request_ip, $request_locales, $options);
 				$end = microtime(true);
 				$ip_lookup_duration = $end - $start;
 			}
@@ -60,7 +61,7 @@ function geoip_detect_option_page() {
 	
 	$message = '';
 	
-	$numeric_options = array('set_css_country', 'has_reverse_proxy');
+	$numeric_options = array('set_css_country', 'has_reverse_proxy', 'disable_pagecache');
 	$text_options = array('external_ip');
 	$option_names = array_merge($numeric_options, $text_options);
 	
