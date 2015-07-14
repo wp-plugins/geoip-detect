@@ -6,7 +6,10 @@ use YellowTree\GeoipDetect\DataSources\DataSourceRegistry;
  * @param string 			$ip 		IP-Adress (IPv4 or IPv6). 'me' is the current IP of the server.
  * @param array(string)		$locales 	List of locale codes to use in name property
  * 										from most preferred to least preferred. (Default: Site language, en)
- * @param boolean			$skipCache	TRUE: Do not use cache for this request. 
+ * @param array				Property names with options.
+ * 		@param boolean 		$skipCache		TRUE: Do not use cache for this request. (Default: FALSE)
+ * 		@param float 		$timeout		Total transaction timeout in seconds (Precision+HostIP.info API only) 
+ * 		@param int			$connectTimeout Initial connection timeout in seconds (Precision API only)
  * @return YellowTree\GeoipDetect\DataSources\City	GeoInformation. (Actually, this is a subclass of \GeoIp2\Model\City)
  * 
  * @see https://github.com/maxmind/GeoIP2-php				API Usage
@@ -14,31 +17,51 @@ use YellowTree\GeoipDetect\DataSources\DataSourceRegistry;
  *
  * @since 2.0.0
  * @since 2.4.0 New parameter $skipCache
+ * @since 2.5.0 Parameter $skipCache has been renamed to $options with 'skipCache' property
  */
-function geoip_detect2_get_info_from_ip($ip, $locales = null, $skipCache = false)
+function geoip_detect2_get_info_from_ip($ip, $locales = null, $options = array())
 {
+	_geoip_maybe_disable_pagecache();
+	// 1) Processing the parameters.
+	
+	$options = _geoip_detect2_process_options($options);
+
+	/**
+	 * Filter: geoip_detect2_locales
+	 * 
+	 * @param array $locales The locales that were passed to the function 
+	 */
 	$locales = apply_filters('geoip_detect2_locales', $locales);
 	
+	
+	// 2) Doing the Lookup
 	$data = array();
 	
-	if (!$skipCache) {
+	// Have a look at the cache first
+	if (!$options['skipCache']) {
 		$data = _geoip_detect2_get_data_from_cache($ip);
 	}
 	
 	if (!$data) {
-		$outError = '';
 
-		$reader = _geoip_detect2_get_reader(array('en') /* will be replaced anyway */, true, $outSourceId);
-		$record = _geoip_detect2_get_record_from_reader($reader, $ip, $outError);
-		$data   = _geoip_detect2_record_enrich_data($record, $ip, $outSourceId, $outError);
+		$reader = _geoip_detect2_get_reader(array('en') /* will be replaced anyway */, true, $outSourceId, $options);
 		
-		if (WP_DEBUG && !GEOIP_DETECT_DOING_UNIT_TESTS && $outError) {
-			trigger_error($outError, E_USER_NOTICE);
+		$lookupError = '';
+		$record = _geoip_detect2_get_record_from_reader($reader, $ip, $lookupError);
+		
+		$data   = _geoip_detect2_record_enrich_data($record, $ip, $outSourceId, $lookupError);
+		
+		if (WP_DEBUG && !GEOIP_DETECT_DOING_UNIT_TESTS && $lookupError) {
+			trigger_error($lookupError, E_USER_NOTICE);
 		}
 
-		if (!$outError)
+		// Save result to cache, but no "IP not found in database" or similar errors
+		if (!$lookupError)
 			_geoip_detect2_add_data_to_cache($data, $ip);
 	}
+	
+	
+	// 3) Returning the data
 	
 	// Always return a city record for API compatability. City attributes etc. return empty values.
 	$record = new \YellowTree\GeoipDetect\DataSources\City($data, $locales);
@@ -59,15 +82,17 @@ function geoip_detect2_get_info_from_ip($ip, $locales = null, $skipCache = false
  *
  * @param array(string)		$locales	List of locale codes to use in name property
  * 										from most preferred to least preferred. (Default: Site language, en)
- * @param boolean			$skipCache	TRUE: Do not use cache for this request.
+ * @param array				Property names with options.
+ * 		@param boolean $skipCache	TRUE: Do not use cache for this request. (Default: FALSE) 
  * @return YellowTree\GeoipDetect\DataSources\City	GeoInformation.
  *
  * @since 2.0.0
  * @since 2.4.0 New parameter $skipCache
+ * @since 2.5.0 Parameter $skipCache has been renamed to $options with 'skipCache' property
  */
-function geoip_detect2_get_info_from_current_ip($locales = null, $skipCache = false)
+function geoip_detect2_get_info_from_current_ip($locales = null, $options = array())
 {
-	return geoip_detect2_get_info_from_ip(geoip_detect2_get_client_ip(), $locales, $skipCache);
+	return geoip_detect2_get_info_from_ip(geoip_detect2_get_client_ip(), $locales, $options);
 }
 
 
@@ -77,13 +102,17 @@ function geoip_detect2_get_info_from_current_ip($locales = null, $skipCache = fa
  * 
  * @param array(string)				List of locale codes to use in name property
  * 									from most preferred to least preferred. (Default: Site language, en)
- * 
+ * @param array				Property names with options.
+ * 		@param float 		$timeout		Total transaction timeout in seconds (Precision+HostIP.info API only) 
+ * 		@param float		$connectTimeout Initial connection timeout in seconds (Precision API only)
  * @return \YellowTree\GeoipDetect\DataSources\ReaderInterface 	The reader, ready to do its work. Don't forget to `close()` it afterwards. NULL if file not found (or other problems).
  * 
  * @since 2.0.0
+ * @since 2.5.0 new parameter $options
  */
-function geoip_detect2_get_reader($locales = null) {	
-	return _geoip_detect2_get_reader($locales, false);
+function geoip_detect2_get_reader($locales = null, $options = array()) {
+	_geoip_maybe_disable_pagecache();
+	return _geoip_detect2_get_reader($locales, false, $sourceIdOut, $options);
 }
 
 /**
@@ -114,8 +143,10 @@ function geoip_detect2_get_current_source_description($source = null) {
  * @since 2.0.0
  */
 function geoip_detect2_get_client_ip() {
+	_geoip_maybe_disable_pagecache();
+	
 	$ip = '::1';
-
+	
 	if (isset($_SERVER['REMOTE_ADDR']))
 		$ip = $_SERVER['REMOTE_ADDR'];
 	
