@@ -90,3 +90,25 @@ function geoip_detect2_shortcode($attr)
 	
 }
 add_shortcode('geoip_detect2', 'geoip_detect2_shortcode');
+
+function geoip_detect2_shortcode_client_ip($attr) {
+	$client_ip = geoip_detect2_get_client_ip();
+	geoip_detect_normalize_ip($client_ip);
+	
+	return $client_ip;
+}
+add_shortcode('geoip_detect2_get_client_ip', 'geoip_detect2_shortcode_client_ip');
+
+function geoip_detect2_shortcode_get_external_ip_adress($attr) {
+	$external_ip = geoip_detect2_get_external_ip_adress();
+	
+	return $external_ip;
+}
+add_shortcode('geoip_detect2_get_external_ip_adress', 'geoip_detect2_shortcode_get_external_ip_adress');
+
+function geoip_detect2_shortcode_get_current_source_description($attr) {
+	$external_ip = geoip_detect2_get_current_source_description();
+
+	return $external_ip;
+}
+add_shortcode('geoip_detect2_get_current_source_description', 'geoip_detect2_shortcode_get_current_source_description');

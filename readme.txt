@@ -2,10 +2,11 @@
 Contributors: benjaminpick
 Tags: geoip, ip, maxmind, geolocation, locator, latitude, longitude
 Requires at least: 3.5
-Tested up to: 4.2
+Tested up to: 4.3
 Stable tag: trunk
 License: GPLv3 or later
 License URI: http://www.gnu.org/licenses/gpl-3.0.html
+Donate link: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=BSYUZHS8FH3CL
 
 Retrieving Geo-Information using one the Maxmind GeoIP2 databases.
 
@@ -69,8 +70,7 @@ https://github.com/yellowtree/wp-geoip-detect/wiki/API-Usage-Examples
 
 = 2.5.1 =
 
-Hotfix:
-If you upgraded to 2.5.0, please verify that the correct datasource is still chosen. Sorry for any inconvenience caused.
+Hotfix: If you upgraded to 2.5.0, please verify that the correct datasource is still chosen. Sorry for any inconvenience caused.
 
 = 2.5.0 =
 
@@ -126,6 +126,12 @@ Fixing automatic weekly updates.
 
 
 == Changelog ==
+
+= 2.5.2 =
+* FIX: Also disallow proxy caching via HTTP header, if possible.
+* NEW: Shortcodes for the other API functions: `[geoip_detect2_get_current_source_description]`, `[geoip_detect2_get_client_ip]`, and `[geoip_detect2_get_external_ip_adress]`
+* FIX: geoip_detect2_get_external_ip_adress() : do not filter if $unfiltered is true.
+
 = 2.5.1 =
 * FIX: Upgrade script did change the source.
 * FIX: Page caching is only disabled on upgrade when set_css_country is disabled.
